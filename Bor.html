@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="./Bor_graphic.js"></script>
+<script src="./Grafo.js"></script>
+
+<div id="my_dataviz"></div>
+
+<script>
+
+var width = 1550, height = 650;
+
+var svg = d3.select("#my_dataviz") 
+.append("svg")
+.attr("width", width )
+.attr("height", height )
+
+var info = svg
+  .append("g")
+  .attr("width", width*3/4)
+  .attr("height", height*3/4);
+
+var pseudo_main_area = svg
+  .append("g")
+
+var pseudo_count_area = svg
+  .append("g")
+
+var pseudo_label_area = svg
+  .append("g")
+
+var pseudo_add_area = svg
+  .append("g")
+
+//-------------------------------------------------------------------------------------------------------------
+
+// Inserir dados do grafo ou mudar o conteúdo de Grafo.js
+
+//-------------------------------------------------------------------------------------------------------------
+
+//PSEUDO-CÓDIGO --------------------------------------------------------------------
+
+//MAIN
+let ps_m =[
+  {t:"Borůvka(V, E):" ,ident:0},
+  {t:"F = (V,∅)", ident:1},
+  {t:"count = CountAndLabel(F)", ident:1},
+  {t:"while (count > 1)", ident:1},
+  {t:"AddAllSafeEdges(E,F,count)", ident:2},
+  {t:"count = CountAndLabel(F)", ident:2},
+  {t:"return", ident:1} 
+]
+
+//ADD_SAFE_EDGES
+let ps_add =[
+  {t:"AddAllSafeEdges(E, F,count):", ident:0},
+  {t:"for each edge uv ∈ E", ident:1},      
+  {t:"if comp(u) != comp(v)", ident:2},       
+  {t:"if safe[comp(u)] = Null or w(uv) < w(safe[comp(u)])", ident:3},
+  {t:"safe[comp(u)]  uv", ident:4},
+  {t:"if safe[comp(v)] = Null or w(uv) < w(safe[comp(v)])", ident:3},
+  {t:"safe[comp(v)]  uv", ident:4}, 
+  {t:"else", ident:2}, 
+  {t:"remove edge uv", ident:3}, 
+]
+
+
+// COUNT
+let ps_count =[
+  {t:"CountAndLabel(G):",ident:0},
+  {t:"count = 0",ident:1},
+  {t:"unmark all vertices v",ident:1},
+  {t:"for all vertices v",ident:1},
+  {t:"if v is unmarked",ident:2},
+  {t:"count += 1",ident:3},
+  {t:"LabelOne(v,count)",ident:3},
+  {t:"return count",ident:1}
+]
+
+//LABEL
+let ps_label =[
+  {t:"LabelOne(v,count):",ident:0},
+  {t:"while the bag is not empty",ident:1},
+  {t:"take v from the bag",ident:2},
+  {t:"if v is unmarked",ident:2},
+  {t:"mark v",ident:3},
+  {t:"comp(v) = count",ident:3},
+  {t:"for each edge vw",ident:3},
+  {t:"put w into the bag",ident:4}
+]
+
+// --------------------------------------------------------------------------------------------------------
+
+let raio = 12;
+
+let cr = {
+  current: "yellow",
+  marked: "red",
+  removed: "lightgray",
+  unvisited: "black",
+  visited: "grey",
+  pre_marked : "blue",
+}
+
+let sub = [
+  {id:"Current" , cor: cr.current},
+  {id:"Marked" , cor: cr.marked },
+  {id:"Removed" , cor: cr.removed},
+  {id:"Unvisited" , cor: cr.unvisited},
+  {id:"Visited" , cor: cr.visited},
+  {id:"Pre-Marked", cor: cr.pre_marked}
+]  
+
+// Cria uma definição para a seta 
+  var marker= svg.append("marker")
+    .attr("id", "arrow")
+    .attr("markerUnits", "strokeWidth")
+    .attr("markerWidth", 8)
+    .attr("markerHeight", 8)
+    .attr("viewBox", "0 0 12 12")
+    .attr("refX", 18)
+    .attr("refY", 6)
+    .attr("orient", "auto-start-reverse")   // facilita as orientações
+    .append("path")
+    .attr("d", "M10,3 L3,6 L10,9 L10,3")
+    .style("fill", "yellow")
+    .style("stroke","blue");
+
+// Cria arestas
+  var arestas = svg
+    .selectAll("line")
+    .data(as)
+    .join("line")
+    .attr("stroke-width",raio/4)
+    .attr("x1", function(d) { return vs[d.source].cx})
+    .attr("y1", function(d) { return vs[d.source].cy})
+    .attr("x2", function(d) { return vs[d.target].cx})
+    .attr("y2", function(d) { return vs[d.target].cy})
+    .attr("id", function(d) { return ([d.source,d.target].join("-"))})
+    .attr("state","unvisited")
+    .attr("safe_n",0) 
+    .style("stroke", cr.unvisited);
+
+
+// Cria vertices e números - aqui são guardados num "g" para estarem mais organizados
+  let vert=[];
+
+  for (let i=0; i<vs.length;i++){
+    vert[i]=svg.append("g")    
+    vert[i].append("circle")    
+    vert[i].append("text")
+  }
+
+  var vertices = svg
+    .selectAll("circle")
+    .data(vs)
+    .join("circle")
+    .attr("r", raio)
+    .attr("stroke",cr.unvisited)
+    .attr("cx", function(d) {return d.cx})
+    .attr("cy", function(d) {return d.cy})
+    .attr("id", function(d) {return d.id});
+      
+  var numbers = svg
+    .selectAll("text")
+    .data(vs)
+    .join("text")
+    .attr('fill', 'white')
+    .text("")
+    .attr("y", function(d) { return d.cy})
+    .attr("x",function (d) { return d.cx})
+    .attr("text-anchor", "middle")    // centra o texto na coord x
+    .attr("dominant-baseline", "central") // centra o texto na coord y
+    .attr("id",function(d,i) { return vs[i].id}); // caso de vertice n estarem organizados na lista
+
+// Passos
+  var title =  svg
+    .append("text")
+    .text("Boruvka")
+    .attr("x",750)
+    .attr("y",50)
+    .style("font-size", "30px")
+
+  var content = svg
+    .append("text")
+    .text("")
+    .attr("x",725)
+    .attr("y",100)
+    .style("font-size", "20px")
+
+// Legenda
+  info
+    .selectAll("text")
+    .data(sub)
+    .join("text")
+    .attr("y",function(d, i){return (i * 20)+ 400;})
+    .attr('x', 700)
+    .text(function(d)  {return d.id});
+    
+  info
+    .selectAll("line")
+    .data(sub)
+    .join("line")
+    .attr("stroke-width",raio/4)
+    .attr("x1", 800)
+    .attr("y1", function(d, i){return (i * 20)+395;})
+    .attr("x2", 920)
+    .attr("y2", function(d, i){return (i * 20)+395;})
+    .style("stroke", function(d) {return d.cor});
+  
+// Código
+  var pseudo_main = pseudo_main_area
+    .selectAll("text")
+    .data(ps_m)
+    .join("text")
+    .attr("y",function(d, i){return (i * 20)+ 150;})
+    .attr("x", function(d){return (20*d.ident)+1100})
+    .attr("step",function(d,i){return i})
+    .text(function(d)  {return d.t})
+    .style("font-size", function(d,i) {if (i==0) return "20px";  return "15px"})
+
+  var pseudo_count = pseudo_count_area
+    .selectAll("text")
+    .data(ps_count)
+    .join("text")
+    .attr("y",function(d, i){return (i * 20)+ 350;})
+    .attr("x", function(d){return (20*d.ident)+1100})
+    .attr("step",function(d,i){return i})
+    .text(function(d)  {return d.t})
+    .style("font-size", function(d,i) {if (i==0) return "20px";  return "15px"})
+    .style("display","none")
+
+  var pseudo_label = pseudo_label_area
+    .selectAll("text")
+    .data(ps_label)
+    .join("text")
+    .attr("y",function(d, i){return (i * 20)+ 350;})
+    .attr("x", function(d){return (20*d.ident)+1300})
+    .attr("step",function(d,i){return i})
+    .text(function(d)  {return d.t})
+    .style("font-size", function(d,i) {if (i==0) return "20px";  return "15px"})
+    .style("display","none")
+
+  var pseudo_add = pseudo_add_area
+    .selectAll("text")
+    .data(ps_add)
+    .join("text")
+    .attr("y",function(d, i){return (i * 20)+ 350;})
+    .attr("x", function(d){return (20*d.ident)+1100})
+    .attr("step",function(d,i){return i})
+    .text(function(d)  {return d.t})
+    .style("font-size", function(d,i) {if (i==0) return "20px";  return "15px"})
+    .style("display","none")
+
+// dados a passar para a função - relativamente à parte gráfica
+let graphic_comp = {
+  all_vertices : vertices, 
+  all_edges : arestas, 
+  all_numbers : numbers,
+  title : title,
+  content : content,
+  pseudo_main : pseudo_main,
+  pseudo_add : pseudo_add,
+  pseudo_label : pseudo_label,
+  pseudo_count : pseudo_count,
+  escala : raio
+}
+  
+Boruvka(grafo1_lista, grafo1_edges,graphic_comp)
+  
+</script>
